@@ -3,6 +3,9 @@
 # 4/16/25
 # testing push from Pi 4
 
+ # requires download  the classifier file to data/
+ # from https://github.com/opencv/opencv/tree/4.x/data
+
 import cv2 as cv
 import numpy as np
 import argparse
@@ -16,6 +19,10 @@ from time import sleep, time
 import spidev
 from math import sqrt
 import json
+
+#for switching off either face detect or motor control
+mode = "motorless"
+
 
 #sbr>>>>>
 # raspberry pi SPI settings
@@ -253,60 +260,6 @@ def autotune():
     
                  
 
-
-
-contourMinimum = 500
-# video capture settings - OpenCV capture, not used here, use picam capture instead 
-picam2 = Picamera2()
-camWidth = 640
-camHeight = 480
-camera_config = picam2.create_video_configuration(main={"format":'XRGB8888', "size":(camWidth,camHeight)})
-picam2.configure(camera_config)
-picam2.start()
-sleep(1)
-controls = picam2.camera_controls
-# picam2.controls.AeExposureMode = 2
-# picam2.controls.ExposureTime = 10000
-picam2.controls.ExposureValue = 0.0
-#turn off auto gain exposure - but want it on for this project
-picam2.controls.AeEnable = True
-#Exposure Mode = 0 -3, Normal, short, long
-picam2.controls.AeExposureMode = 3
-
-controls = picam2.camera_controls
-
-print(controls)
-#picam2.controls.AnalogueGain
-#controls2 = picam2.set_controls({"ExposureTime":10000,"AnalogueGain":10.0})
-
- # downloaded and moved the classifier file to data/
- # from https://github.com/opencv/opencv/tree/4.x/data
-parser = argparse.ArgumentParser(description='Code for Cascade Classifier Tutorial')
-parser.add_argument('--face_cascade', help='Path to face cascade', default='data/haarcascade_frontalface_alt.xml')
-parser.add_argument('--camera',help='Camera divide number.', type=int, default =0)
-args = parser.parse_args()
-# cascade classifier sttings
-face_cascade_name = args.face_cascade
-face_cascade = cv.CascadeClassifier()
-
-verbose = True
-
-if not face_cascade.load(cv.samples.findFile(face_cascade_name)):
-    print('error loading eyes cascade')
-    exit()
-    
-trackedFace = None
-showFrame = True
-showMovement = showGray =False
-frameWindowDestroyed = False
-grayWindowDestroyed = movementWindowDestroyed = True
-showMovement = showGray = False
-matchDistance = 100
-lifeLength = 10
-camFov = 53.5
-flipCam = True
-
-
 def random_color():
     randColor = (random.randint(0,255),random.randint(0,255),random.randint(0,255))
     return randColor
@@ -354,12 +307,7 @@ def drawFace(face,frame):
     
     cv.putText(frame,str(face['life']),(face['x']+10,face['y']+10),cv.FONT_HERSHEY_SIMPLEX,.5,(255,255,255),2,cv.LINE_AA,False)
     
-#     faceCenter = face['x']+face['w']/2
-#     xDist = camWidth/2 - faceCenter
-#     offsetPercent = xDist/(camWidth*.5)
-#     angle = camFov/2*offsetPercent
-#     if verbose:
-#         print(angle)
+
 
 
 
@@ -423,18 +371,71 @@ def detectFaces(moveframe,frame):
 
 
     cv.putText(frame,str(len(currentFaces)),(10,10),cv.FONT_HERSHEY_SIMPLEX,1.0,(255,255,255),2,cv.LINE_AA,False)
-                
-                
-#sbr>>>>>>>>>>>>>>>>>>                
-registers = {}
-settings = {}    
-regDict = {}
+     
+#>>>>>>>>> Camera Settings
+contourMinimum = 500
+# video capture settings - OpenCV capture, not used here, use picam capture instead 
+picam2 = Picamera2()
+camWidth = 640
+camHeight = 480
+camera_config = picam2.create_video_configuration(main={"format":'XRGB8888', "size":(camWidth,camHeight)})
+picam2.configure(camera_config)
+picam2.start()
+sleep(1)
+controls = picam2.camera_controls
+# picam2.controls.AeExposureMode = 2
+# picam2.controls.ExposureTime = 10000
+picam2.controls.ExposureValue = 0.0
+#turn off auto gain exposure - but want it on for this project
+picam2.controls.AeEnable = True
+#Exposure Mode = 0 -3, Normal, short, long
+picam2.controls.AeExposureMode = 3
+#controls = picam2.camera_controls
 
-spi = spidev.SpiDev()
-spi.open(bus, device)
-spi.max_speed_hz =  SPI_MAX_HZ
-spi.mode = SPI_MODE
-load_json()
+#picam2.controls.AnalogueGain
+#controls2 = picam2.set_controls({"ExposureTime":10000,"AnalogueGain":10.0})
+
+ # downloaded and moved the classifier file to data/
+ # from https://github.com/opencv/opencv/tree/4.x/data
+parser = argparse.ArgumentParser(description='Code for Cascade Classifier Tutorial')
+parser.add_argument('--face_cascade', help='Path to face cascade', default='data/haarcascade_frontalface_alt.xml')
+parser.add_argument('--camera',help='Camera divide number.', type=int, default =0)
+args = parser.parse_args()
+# cascade classifier sttings
+face_cascade_name = args.face_cascade
+face_cascade = cv.CascadeClassifier()
+
+verbose = True
+
+if not face_cascade.load(cv.samples.findFile(face_cascade_name)):
+    print('error loading eyes cascade')
+    exit()
+    
+trackedFace = None
+showFrame = True
+showMovement = showGray =False
+frameWindowDestroyed = False
+grayWindowDestroyed = movementWindowDestroyed = True
+showMovement = showGray = False
+matchDistance = 100
+lifeLength = 10
+camFov = 53.5
+flipCam = True
+
+
+           
+                
+#sbr>>>>>>>>>>>>>>>>>> 
+if mode != "motorless":               
+    registers = {}
+    settings = {}    
+    regDict = {}
+
+    spi = spidev.SpiDev()
+    spi.open(bus, device)
+    spi.max_speed_hz =  SPI_MAX_HZ
+    spi.mode = SPI_MODE
+    load_json()
 
 
 listener = keyboard.Listener(on_press = onpress, on_release = onrelease)
@@ -446,13 +447,14 @@ backSub = cv.createBackgroundSubtractorKNN(30,400,False)
 
 
 try:
-    begin()
-    rms_current(MOTOR_IRMS) 
-    set_val(settings["en_pwm_mode"],1)
-    set_val(settings["pwm_autoscale"],1)
-    set_val(settings["pwm_autograd"],1)
-    set_val(settings["TOFF"],5) # any number other than 0 turns on the driver, should already be on
-    autotune()
+    if mode != "motorless":     
+        begin()
+        rms_current(MOTOR_IRMS) 
+        set_val(settings["en_pwm_mode"],1)
+        set_val(settings["pwm_autoscale"],1)
+        set_val(settings["pwm_autograd"],1)
+        set_val(settings["TOFF"],5) # any number other than 0 turns on the driver, should already be on
+        autotune()
     
     while(True):
         
@@ -512,70 +514,22 @@ try:
             print(angle)
             point_angle = int(200*256*angle/360)
             print(f'point_angle: {point_angle}')
-            set_val(registers['XTARGET'], -point_angle)       
+            if mode !="motorless":
+                set_val(registers['XTARGET'], -point_angle)       
         #sleep(8)
 except:
     
     picam2.stop_preview()
     cv.destroyAllWindows()
-
-    # on any error, turn off driver
-    begin() # restore defaults to motor board
-    set_val(settings["TOFF"],0)
-    sleep(1)
-    spi.close()
+    if mode != "motorless":
+        # on any error, turn off driver
+        begin() # restore defaults to motor board
+        set_val(settings["TOFF"],0)
+        sleep(1)
+        spi.close()
     raise
     
-# while True:
-#     #picam2 capture
-#     frame = picam2.capture_array()
-#     
-#     if flipCam:
-#         frame = cv.flip(frame,-1)
-#     if frame is None:
-#         break
-#     #bg subtraction
-#     fgMask = backSub.apply(frame)
-#     morphKernel = np.ones((3,3),np.uint8)
-#     dilated = cv.dilate(fgMask,morphKernel,iterations = 1)
-#     
-#     # find contours
-#     retrMethod = cv.RETR_EXTERNAL
-#     conApprox = cv.CHAIN_APPROX_SIMPLE
-#     contours, hierarchy = cv.findContours(dilated,retrMethod,conApprox)
-#     # draw movment into a separate frame for face detection
-#     movement_frame = np.zeros((480,640),np.uint8)
-# 
-#     for i in range(len(contours)):
-#         contour = contours[i]
-#         
-#         if cv.contourArea(contour)>contourMinimum:
-#             x,y,w,h = cv.boundingRect(contour)
-#             frame_gray = cv.cvtColor(frame,cv.COLOR_BGR2GRAY)
-#             #Contrast Limited Adaptive Histogram
-#             clahe = cv.createCLAHE(clipLimit = 2.0, tileGridSize = (8,8))
-#             frame_clahe = clahe.apply(frame_gray)
-#             #copy contents of large contours to movement buffer
-#             movement_frame[y:y+h,x:x+w] = frame_clahe[y:y+h,x:x+w]
-#   
-#     detectFaces(movement_frame,frame)
-#         
-#     if showFrame:
-#         cv.imshow('frame',frame)
-#     if showGray:
-#         cv.imshow('gray', frame_gray)
-#     #cv.imshow('clahe', frame_clahe)
-#     if showMovement:
-#         cv.imshow('movement',movement_frame)
-#     
-#     key = cv.waitKey(1)
-   
 
-    
-# 
-# picam2.stop_preview()
-# cv.destroyAllWindows()
-# exit()
 
     
 
